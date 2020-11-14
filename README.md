@@ -11,7 +11,7 @@ env CAMERA_HOST=192.168.1.xxx CAMERA_RTSP_TOKEN=sdfsefsdsdfsf python3 main.py
     - /snapshot/raw/small-rtsp
     - /snapshot/raw/big-rtsp
     - /snapshot/raw/small-jpg
-    / /snapshot/raw/big-jpg
+    - /snapshot/raw/big-jpg
 - Auto: Target-driven routes with fallbacked captures (faster as possible)
     - /snapshot/auto/big : big-jpg or resized small-jpg or big-rtsp
     - /snapshot/auto/small : small-jpg or small-rtsp
