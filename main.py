@@ -8,7 +8,7 @@ CAMERA_RTSP_TOKEN=os.environ['CAMERA_RTSP_TOKEN'] if 'CAMERA_RTSP_TOKEN' in os.e
 
 SMALL_RTSP='rtsp://' + CAMERA_HOST + '/live/ch1'
 SMALL_JPG='http://' + CAMERA_HOST + '/api/v1/snap.cgi?chn=1'
-BIG_RTSP='rtsp://' + CAMERA_HOST + '/live/ch0?token=21a39285884a268d6458e3fdeb08beac'
+BIG_RTSP='rtsp://' + CAMERA_HOST + '/live/ch0'
 BIG_JPG='http://' + CAMERA_HOST + '/api/v1/snap.cgi?chn=0'
 
 if CAMERA_RTSP_TOKEN != None:
