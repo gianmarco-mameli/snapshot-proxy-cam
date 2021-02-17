@@ -1,5 +1,7 @@
-import cv2, os, socketserver, http.server, urllib.parse, requests
+import cv2, os, socketserver, http.server, urllib.parse, requests, logging
 import numpy as np
+
+logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
 ## ONLY FOR my stupid W5 but updatable to accept every cam ;)
 def load_config():
@@ -69,7 +71,7 @@ def capture_fallbacks(lambdas):
         try:
             return _lambda()
         except Exception as inst:
-            print('WRN ' + str(inst))
+            logging.info('WRN ' + str(inst))
 
 def resize(capture, size, raw = False):
     if raw == True:
@@ -113,8 +115,10 @@ def capture_auto_route(camera, path):
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if (self.path == '/favicon.ico'):
-            print('Skipped')
+            logging.info('Skipped')
             return
+
+        logging.info('RECEIVE REQUEST');
 
         camera_name, *route_parts = urllib.parse.urlparse(self.path).path[1:].split('/')
         route = '/'.join(route_parts)
@@ -124,7 +128,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type','text/html')
             self.end_headers()
             self.wfile.write(bytes('Camera not found', 'utf8'))
-            print('CAMERA NOT FOUND')
+            logging.info('CAMERA NOT FOUND')
             return
 
         try:
@@ -133,25 +137,30 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type','image/jpg')
             self.end_headers()
             self.wfile.write( data )
+            logging.info('ENDED')
         except InvalidPathException as inst:
             self.send_response(404)
             self.send_header('Content-type','text/html')
             self.end_headers()
             self.wfile.write(bytes(str('Invalid Path'), 'utf8'))
-            print('InvalidPathException')
+            logging.info('InvalidPathException')
         except Exception as inst:
             self.send_response(500)
             self.send_header('Content-type','text/html')
             self.end_headers()
             # Don't write exception in output as can be used as public proxy and can output credentials/tokens
             self.wfile.write(bytes(str('Internal Error'), 'utf8'))
-            print('ERROR ' + str(inst))
+            logging.info('ERROR ' + str(inst))
 
+# class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+#     pass
+
+# httpd = ThreadingHTTPServer(('', 8080), Handler)
 httpd = socketserver.ThreadingTCPServer(('', 8080), Handler)
 try:
-   print('Listening')
+   logging.info('Listening')
    httpd.serve_forever()
 except KeyboardInterrupt:
    pass
 httpd.server_close()
-print('Ended')
+logging.info('Ended')
