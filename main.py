@@ -2,18 +2,46 @@ import cv2, os, socketserver, http.server, urllib.parse, requests
 import numpy as np
 
 ## ONLY FOR my stupid W5 but updatable to accept every cam ;)
+def load_config():
 
-CAMERA_HOST=os.environ['CAMERA_HOST'] # Can be authority (with user pass)
-CAMERA_RTSP_TOKEN=os.environ['CAMERA_RTSP_TOKEN'] if 'CAMERA_RTSP_TOKEN' in os.environ else None
+    env_camera = {}
 
-SMALL_RTSP='rtsp://' + CAMERA_HOST + '/live/ch1'
-SMALL_JPG='http://' + CAMERA_HOST + '/api/v1/snap.cgi?chn=1'
-BIG_RTSP='rtsp://' + CAMERA_HOST + '/live/ch0'
-BIG_JPG='http://' + CAMERA_HOST + '/api/v1/snap.cgi?chn=0'
+    for k, v in os.environ.items():
+        if k[0:7] == 'CAMERA_':
+            name, *rest = k[7:].split('_')
+            name = name.lower()
+            rest = '_'.join(rest).lower()
 
-if CAMERA_RTSP_TOKEN != None:
-    SMALL_RTSP += '?token=' + CAMERA_RTSP_TOKEN
-    BIG_RTSP += '?token=' + CAMERA_RTSP_TOKEN
+            if name not in env_camera:
+                env_camera[name] = {}
+
+            env_camera[name][rest] = v
+
+    config = {}
+
+    for name in env_camera:
+        values = env_camera[name]
+
+        SMALL_RTSP='rtsp://' + values['host'] + '/live/ch1'
+        SMALL_JPG='http://' + values['host'] + '/api/v1/snap.cgi?chn=1'
+        BIG_RTSP='rtsp://' + values['host'] + '/live/ch0'
+        BIG_JPG='http://' + values['host'] + '/api/v1/snap.cgi?chn=0'
+
+        if 'rtsp_token' in values != None:
+            SMALL_RTSP += '?token=' + values['rtsp_token']
+            BIG_RTSP += '?token=' + values['rtsp_token']
+
+
+        config[name] = {
+            'small_rtsp': SMALL_RTSP,
+            'small_jpg': SMALL_JPG,
+            'big_rtsp': BIG_RTSP,
+            'big_jpg': BIG_JPG
+        }
+
+    return config
+
+cameras = load_config()
 
 BIG_SIZE=(1920, 1080) # W5 CH0
 MEDIUM_SIZE=(1280, 720) # BETWEEN
@@ -32,7 +60,9 @@ def capture_rtsp(url, raw = False):
     return cap
 
 def capture_jpg(url):
-    return requests.get(url).content
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.content
 
 def capture_fallbacks(lambdas):
     for _lambda in lambdas:
@@ -49,54 +79,72 @@ def resize(capture, size, raw = False):
 
     return cv2.imencode('.jpg', cv2.resize(image, size), [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
 
-def capture_auto_route(path):
-    if path == 'snapshot/raw/small-rtsp':
-        return capture_rtsp(SMALL_RTSP)
-    if path == 'snapshot/raw/big-rtsp':
-        return capture_rtsp(BIG_RTSP)
-    if path == 'snapshot/raw/small-jpg':
-        return capture_jpg(SMALL_JPG)
-    if path == 'snapshot/raw/big-jpg':
-        return capture_jpg(BIG_JPG)
-    if path == 'snapshot/auto/big':
+class InvalidPathException(Exception):
+    pass
+
+def capture_auto_route(camera, path):
+    if path == 'raw/small-rtsp':
+        return capture_rtsp(camera['small_rtsp'])
+    if path == 'raw/big-rtsp':
+        return capture_rtsp(camera['big_rtsp'])
+    if path == 'raw/small-jpg':
+        return capture_jpg(camera['small_jpg'])
+    if path == 'raw/big-jpg':
+        return capture_jpg(camera['big_jpg'])
+    if path == 'auto/big':
         return capture_fallbacks([
-            lambda: capture_jpg(BIG_JPG),
-            lambda: resize(capture_jpg(SMALL_JPG), BIG_SIZE),
-            lambda: capture_rtsp(BIG_RTSP)
+            lambda: capture_jpg(camera['big_jpg']),
+            lambda: resize(capture_jpg(camera['small_jpg']), BIG_SIZE),
+            lambda: capture_rtsp(camera['big_rtsp'])
         ])
-    if path == 'snapshot/auto/small':
+    if path == 'auto/small':
         return capture_fallbacks([
-            lambda: capture_jpg(SMALL_JPG),
-            lambda: capture_small_rtsp()
+            lambda: capture_jpg(camera['small_jpg']),
+            lambda: capture_rtsp(camera['small_rtsp'])
         ])
-    if path == 'snapshot/auto/medium':
+    if path == 'auto/medium':
         return capture_fallbacks([
-            lambda: resize(capture_jpg(BIG_JPG), MEDIUM_SIZE),
-            lambda: resize(capture_jpg(SMALL_JPG), MEDIUM_SIZE),
-            lambda: resize(capture_rtsp(BIG_RTSP, True), MEDIUM_SIZE, True)
+            lambda: resize(capture_jpg(camera['big_jpg']), MEDIUM_SIZE),
+            lambda: resize(capture_jpg(camera['small_jpg']), MEDIUM_SIZE),
+            lambda: resize(capture_rtsp(camera['big_rtsp'], True), MEDIUM_SIZE, True)
         ])
-    raise Exception('Hum ?')
+    raise InvalidPathException('Invalid path')
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        sMac = urllib.parse.urlparse(self.path).path[1:]
-        print('Requested ' + sMac)
-
-        if (sMac == 'favicon.ico'):
+        if (self.path == '/favicon.ico'):
             print('Skipped')
             return
 
+        camera_name, *route_parts = urllib.parse.urlparse(self.path).path[1:].split('/')
+        route = '/'.join(route_parts)
+
+        if camera_name not in cameras:
+            self.send_response(404)
+            self.send_header('Content-type','text/html')
+            self.end_headers()
+            self.wfile.write(bytes('Camera not found', 'utf8'))
+            print('CAMERA NOT FOUND')
+            return
+
         try:
-            data = capture_auto_route(sMac)
+            data = capture_auto_route(cameras[camera_name], route)
             self.send_response(200)
             self.send_header('Content-type','image/jpg')
             self.end_headers()
             self.wfile.write( data )
+        except InvalidPathException as inst:
+            self.send_response(404)
+            self.send_header('Content-type','text/html')
+            self.end_headers()
+            self.wfile.write(bytes(str('Invalid Path'), 'utf8'))
+            print('InvalidPathException')
         except Exception as inst:
             self.send_response(500)
             self.send_header('Content-type','text/html')
             self.end_headers()
-            self.wfile.write(bytes(str(inst), 'utf8'))
+            # Don't write exception in output as can be used as public proxy and can output credentials/tokens
+            self.wfile.write(bytes(str('Internal Error'), 'utf8'))
             print('ERROR ' + str(inst))
 
 httpd = socketserver.TCPServer(('', 8080), Handler)
