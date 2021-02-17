@@ -147,7 +147,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(bytes(str('Internal Error'), 'utf8'))
             print('ERROR ' + str(inst))
 
-httpd = socketserver.TCPServer(('', 8080), Handler)
+httpd = socketserver.ThreadingTCPServer(('', 8080), Handler)
 try:
    print('Listening')
    httpd.serve_forever()
