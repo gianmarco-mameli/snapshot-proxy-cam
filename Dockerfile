@@ -1,6 +1,6 @@
 FROM python:slim
 
-RUN pip install opencv-contrib-python-headless requests
+RUN pip install opencv-python-headless requests
 
 WORKDIR /app
 
