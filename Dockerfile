@@ -1,4 +1,4 @@
-FROM python
+FROM python:slim
 
 RUN pip install opencv-contrib-python-headless requests
 
