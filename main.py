@@ -131,8 +131,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
         self.end_headers()
 
-        change_cam_interval = mpg_opts['chg_cam_interval'] if 'chg_cam_interval' in mpg_opts else 5
-        image_interval = mpg_opts['chg_frame_interval'] if 'chg_frame_interval' in mpg_opts else 1
+        change_cam_interval = mpg_opts.get('chg_cam_interval') or 5
+        image_interval = mpg_opts.get('chg_frame_interval') or 1
 
         context = {
             'camera': cameras[0],
@@ -169,7 +169,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     time.sleep(sleep)
                 last_image_time = time.time()
             except BrokenPipeError as inst:
-                print('Disconnected')
+                logging.info('Disconnected')
                 context['run'] = False
                 break
             except Exception as inst:
