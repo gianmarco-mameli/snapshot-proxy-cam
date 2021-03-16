@@ -1,9 +1,12 @@
-# proxy-cam
+# snapshot-proxy-cam
+
 Proxy Cam for (currently) shitty W5 (need fallbacked because doesnt support officialy snapshot endpoint and so don't want to fix repetitive E500)
 
 Extended for funny features
 
 See docker-compose.yml
+
+For RTSP proxy, see https://github.com/aler9/rtsp-simple-server
 
 ## Routes
 
