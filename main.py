@@ -63,7 +63,7 @@ def capture_rtsp(url, raw = False):
     return cap
 
 def capture_jpg(url):
-    response = requests.get(url)
+    response = requests.get(url, {timeout=10})
     response.raise_for_status()
     return response.content
 
@@ -73,6 +73,8 @@ def capture_fallbacks(lambdas):
             return _lambda()
         except Exception as inst:
             logging.info('WRN ' + str(inst))
+
+    raise Exception('No working fallback')
 
 def resize(capture, size, raw = False):
     if raw == True:
