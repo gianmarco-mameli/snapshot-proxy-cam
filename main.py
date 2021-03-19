@@ -63,7 +63,7 @@ def capture_rtsp(url, raw = False):
     return cap
 
 def capture_jpg(url):
-    response = requests.get(url, {timeout=10})
+    response = requests.get(url, timeout=10)
     response.raise_for_status()
     return response.content
 
