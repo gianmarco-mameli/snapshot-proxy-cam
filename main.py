@@ -24,6 +24,15 @@ def load_config():
     for name in env_camera:
         values = env_camera[name]
 
+        enabled_jpg = True
+        enabled_rtsp = True
+
+        if 'enabled_jpg' in values and values['enabled_jpg'] in ['0', 'false']:
+            enabled_jpg = False
+
+        if 'enabled_rtsp' in values and values['enabled_rtsp'] in ['0', 'false']:
+            enabled_rtsp = False
+
         SMALL_RTSP='rtsp://' + values['host'] + '/live/ch1'
         SMALL_JPG='http://' + values['host'] + '/api/v1/snap.cgi?chn=1'
         BIG_RTSP='rtsp://' + values['host'] + '/live/ch0'
@@ -36,10 +45,10 @@ def load_config():
 
         config[name] = {
             'name': name,
-            'small_rtsp': SMALL_RTSP,
-            'small_jpg': SMALL_JPG,
-            'big_rtsp': BIG_RTSP,
-            'big_jpg': BIG_JPG
+            'small_rtsp': SMALL_RTSP if enabled_rtsp else None,
+            'small_jpg': SMALL_JPG if enabled_jpg else None,
+            'big_rtsp': BIG_RTSP if enabled_rtsp else None,
+            'big_jpg': BIG_JPG if enabled_jpg else None
         }
 
     return config
@@ -52,6 +61,7 @@ SMALL_SIZE=(768, 432) # W5 CH1
 JPG_COMPRESSION=75 # W5 compression
 
 def capture_rtsp(url, raw = False):
+    logging.debug('Capturing RTSP')
     capture = cv2.VideoCapture(url)
     frame_width = int(capture.get(3))
     frame_height = int(capture.get(4))
@@ -63,6 +73,7 @@ def capture_rtsp(url, raw = False):
     return cap
 
 def capture_jpg(url):
+    logging.debug('Capturing JPG')
     response = requests.get(url, timeout=10)
     response.raise_for_status()
     return response.content
@@ -178,32 +189,75 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 time.sleep(5)
         return
 
+    def assert_avail(self, camera, what):
+        if not self.is_avail(camera, what):
+            raise Exception('%s not handled on camera %s' % what % camera['name'])
+
+    def is_avail(self, camera, what):
+        if camera[what]:
+            return True
+
+        return False
+
+    def build_capture_fallbacks(self, camera, mapping):
+        ls = []
+        for item in mapping:
+            if self.is_avail(camera, item[0]):
+                ls.append(item[1])
+
+        if len(ls) == 0:
+            raise Exception('Nothing is handled on camera %s' % camera['name'])
+
+        if len(ls) == 1:
+            logging.info('No fallback available for camera %s on this mapping' % camera['name'])
+
+        return ls
+
     def get_image(self, camera, source_type, size):
         if source_type == 'raw-rtsp' and size == 'small':
+            assert_avail(camera, 'small_rtsp')
             return capture_rtsp(camera['small_rtsp'])
         if source_type == 'raw-rtsp' and size == 'big':
+            assert_avail(camera, 'big_rtsp')
             return capture_rtsp(camera['big_rtsp'])
         if source_type == 'raw-jpg' and size == 'small':
+            assert_avail(camera, 'small_jpg')
             return capture_jpg(camera['small_jpg'])
         if source_type == 'raw-jpg' and size == 'big':
+            assert_avail(camera, 'big_jpg')
             return capture_jpg(camera['big_jpg'])
         if source_type == 'auto' and size == 'big':
-            return capture_fallbacks([
-                lambda: capture_jpg(camera['big_jpg']),
-                lambda: resize(capture_jpg(camera['small_jpg']), BIG_SIZE),
-                lambda: capture_rtsp(camera['big_rtsp'])
-            ])
+            return capture_fallbacks(
+                self.build_capture_fallbacks(
+                    camera,
+                    [
+                        ['big_jpg',   lambda: capture_jpg(camera['big_jpg'])],
+                        ['small_jpg', lambda: resize(capture_jpg(camera['small_jpg']), BIG_SIZE)],
+                        ['big_rtsp',  lambda: capture_rtsp(camera['big_rtsp'])]
+                    ]
+                )
+            )
         if source_type == 'auto' and size == 'small':
-            return capture_fallbacks([
-                lambda: capture_jpg(camera['small_jpg']),
-                lambda: capture_rtsp(camera['small_rtsp'])
-            ])
+            return capture_fallbacks(
+                self.build_capture_fallbacks(
+                    camera,
+                    [
+                        ['small_jpg',  lambda: capture_jpg(camera['small_jpg'])],
+                        ['small_rtsp', lambda: capture_rtsp(camera['small_rtsp'])],
+                    ]
+                )
+            )
         if source_type == 'auto' and size == 'medium':
-            return capture_fallbacks([
-                lambda: resize(capture_jpg(camera['big_jpg']), MEDIUM_SIZE),
-                lambda: resize(capture_jpg(camera['small_jpg']), MEDIUM_SIZE),
-                lambda: resize(capture_rtsp(camera['big_rtsp'], True), MEDIUM_SIZE, True)
-            ])
+            return capture_fallbacks(
+                self.build_capture_fallbacks(
+                    camera,
+                    [
+                        ['big_jpg',   lambda: resize(capture_jpg(camera['big_jpg']), MEDIUM_SIZE)],
+                        ['small_jpg', lambda: resize(capture_jpg(camera['small_jpg']), MEDIUM_SIZE)],
+                        ['big_rtsp',  lambda: resize(capture_rtsp(camera['big_rtsp'], True), MEDIUM_SIZE, True)]
+                    ]
+                )
+            )
 
     def do_GET(self):
         if (self.path == '/favicon.ico'):
