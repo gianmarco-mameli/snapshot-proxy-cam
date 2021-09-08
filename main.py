@@ -217,16 +217,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def get_image(self, camera, source_type, size):
         if source_type == 'raw-rtsp' and size == 'small':
-            assert_avail(camera, 'small_rtsp')
+            self.assert_avail(camera, 'small_rtsp')
             return capture_rtsp(camera['small_rtsp'])
         if source_type == 'raw-rtsp' and size == 'big':
-            assert_avail(camera, 'big_rtsp')
+            self.assert_avail(camera, 'big_rtsp')
             return capture_rtsp(camera['big_rtsp'])
         if source_type == 'raw-jpg' and size == 'small':
-            assert_avail(camera, 'small_jpg')
+            self.assert_avail(camera, 'small_jpg')
             return capture_jpg(camera['small_jpg'])
         if source_type == 'raw-jpg' and size == 'big':
-            assert_avail(camera, 'big_jpg')
+            self.assert_avail(camera, 'big_jpg')
             return capture_jpg(camera['big_jpg'])
         if source_type == 'auto' and size == 'big':
             return capture_fallbacks(
@@ -313,7 +313,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 #     pass
 
 # httpd = ThreadingHTTPServer(('', 8080), Handler)
-httpd = socketserver.ThreadingTCPServer(('', 8080), Handler)
+port = int(os.environ.get('PORT', 80))
+httpd = socketserver.ThreadingTCPServer(('', port), Handler)
 try:
    logging.info('Listening')
    httpd.serve_forever()
