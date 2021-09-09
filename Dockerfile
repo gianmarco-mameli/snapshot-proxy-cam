@@ -17,6 +17,8 @@ WORKDIR /app
 
 ADD main.py .
 
+USER nobody
+
 CMD python -u ./main.py
 
 # FROM python:slim
