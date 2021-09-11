@@ -1,7 +1,7 @@
 import cv2, os, socketserver, http.server, urllib.parse, requests, logging, time, re, sched, threading
 import numpy as np
 
-logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] [thread=%(threadName)s] %(message)s')
 
 ## ONLY FOR my stupid W5 but updatable to accept every cam ;)
 def load_config():
@@ -67,8 +67,10 @@ def capture_rtsp(url, raw = False):
     frame_height = int(capture.get(4))
     (status, frame) = capture.read()
     if not status:
+        capture.release()
         raise Exception('Empty frame')
     if raw == True:
+        capture.release()
         return frame
     cap = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
     capture.release()
