@@ -67,10 +67,10 @@ def capture_rtsp(url, raw = False):
     frame_height = int(capture.get(4))
     (status, frame) = capture.read()
     if not status:
-        capture.release()
+        #capture.release()
         raise Exception('Empty frame')
     if raw == True:
-        capture.release()
+        #capture.release()
         return frame
     cap = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
     capture.release()
