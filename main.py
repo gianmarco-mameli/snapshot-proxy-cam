@@ -105,9 +105,9 @@ def resize(capture, size, raw = False):
 
 class Handler(http.server.SimpleHTTPRequestHandler):
 
-    def capture(self, cameras, source_type, size, format, mpg_opts):
+    def capture(self, camera, source_type, size, format):
         invalids = []
-        if format not in ['jpg', 'mjpg']:
+        if format not in ['jpg']:
             invalids.append('Invalid format')
         if size not in ['small', 'medium', 'big']:
             invalids.append('Invalid size')
@@ -115,8 +115,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             invalids.append('Invalid source type')
         if size == 'medium' and source_type != 'auto':
             invalids.append('Medium size only available in auto source type')
-        if len(cameras) > 1 and format != 'mjpg':
-            invalids.append('Only 1 camera if not mjpg')
 
         if invalids:
             self.send_response(400)
@@ -128,9 +126,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         try :
             if format == 'jpg':
-                self.capture_jpg(cameras[0], source_type, size)
+                self.capture_jpg(camera, source_type, size)
             else:
-                self.capture_mpg(cameras, source_type, size, mpg_opts)
+                raise Exception('To handle ?')
         except Exception as inst:
             self.send_response(500)
             self.send_header('Content-type','text/html')
@@ -146,56 +144,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(image)
         logging.info('ENDED')
-
-    def capture_mpg(self, cameras, source_type, size, mpg_opts):
-        self.send_response(200)
-        self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
-        self.end_headers()
-
-        change_cam_interval = mpg_opts.get('chg_cam_interval') or 5
-        image_interval = mpg_opts.get('chg_frame_interval') or 1
-
-        context = {
-            'camera': cameras[0],
-            'run': True
-        }
-        def next_camera():
-            scheduler = sched.scheduler(time.time)
-            def do_next(i):
-                if not context['run']:
-                    return
-                i += 1
-                if i >= len(cameras):
-                    i = 0
-                scheduler.enter(10, 1, do_next, (i,))
-                context['camera'] = cameras[i]
-            do_next(0)
-            scheduler.run()
-
-        next_cam_thread = threading.Thread(target=next_camera)
-        next_cam_thread.start()
-
-        last_image_time = time.time()
-
-        while True:
-            try:
-                img = self.get_image(context['camera'], source_type, size)
-                self.wfile.write(bytes(str("--jpgboundary"), 'utf8'))
-                self.send_header('Content-type','image/jpeg')
-                #self.send_header('Content-length',str(img.len))
-                self.end_headers()
-                self.wfile.write( img )
-                sleep = last_image_time - time.time() + image_interval
-                if sleep > 0:
-                    time.sleep(sleep)
-                last_image_time = time.time()
-            except BrokenPipeError as inst:
-                logging.info('Disconnected')
-                context['run'] = False
-                break
-            except Exception as inst:
-                time.sleep(5)
-        return
 
     def assert_avail(self, camera, what):
         if not self.is_avail(camera, what):
@@ -285,15 +233,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             logging.info('Invalid Path')
             return
 
-        camera_names, source_type, size, format = route_match.groups()
-
-        if camera_names == '*':
-            camera_names = dict.keys(cameras)
-        else:
-            camera_names = camera_names.split(',')
+        camera_name, source_type, size, format = route_match.groups()
 
         try:
-            req_cameras = list(map(lambda camera_name: cameras[camera_name], camera_names))
+            req_camera = cameras[camera_name]
         except Exception as inst:
             self.send_response(404)
             self.send_header('Content-type','text/html')
@@ -303,14 +246,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
 
         capture_config = {
-            'cameras': req_cameras,
+            'camera': req_camera,
             'source_type': source_type, #'raw-jpg',
             'size': size, #'big'
-            'format': format, # 'mjpg'
-            'mpg_opts': {
-                'chg_cam_interval': int(opts['chg_cam_interval'][0]) if 'chg_cam_interval' in opts else None,
-                'chg_frame_interval': float(opts['chg_frame_interval'][0]) if 'chg_frame_interval' in opts else None,
-            }
+            'format': format, # 'jpg'
         }
 
         self.capture(**capture_config)
