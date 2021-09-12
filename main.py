@@ -63,18 +63,22 @@ JPG_COMPRESSION=75 # W5 compression
 def capture_rtsp(url, raw = False):
     logging.debug('Capturing RTSP')
     capture = cv2.VideoCapture(url)
-    frame_width = int(capture.get(3))
-    frame_height = int(capture.get(4))
-    (status, frame) = capture.read()
-    if not status:
-        #capture.release()
-        raise Exception('Empty frame')
-    if raw == True:
-        #capture.release()
-        return frame
-    cap = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
-    capture.release()
-    return cap
+    released = False
+    try:
+        frame_width = int(capture.get(3))
+        frame_height = int(capture.get(4))
+        (status, frame) = capture.read()
+        capture.release()
+        released = True
+        if not status:
+            raise Exception('Empty frame')
+        if raw == True:
+            return frame
+        cap = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
+        return cap
+    finally:
+        if not released:
+            capture.release()
 
 def capture_jpg(url):
     logging.debug('Capturing JPG')
