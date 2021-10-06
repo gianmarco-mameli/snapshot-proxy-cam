@@ -63,9 +63,11 @@ JPG_COMPRESSION=75 # W5 compression
 
 def capture_rtsp(url, q, raw = False):
     logging.debug('Capturing RTSP')
-    capture = cv2.VideoCapture(url)
+    capture = None
     released = False
+
     try:
+        capture = cv2.VideoCapture(url)
         frame_width = int(capture.get(3))
         frame_height = int(capture.get(4))
         (status, frame) = capture.read()
@@ -77,8 +79,10 @@ def capture_rtsp(url, q, raw = False):
             return q.put(frame)
         cap = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
         return q.put(cap)
+    except Exception as inst:
+        q.put(inst)
     finally:
-        if not released:
+        if capture and not released:
             capture.release()
 
 def capture_jpg(url):
@@ -175,7 +179,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             q = Queue()
             p = Process(target=capture_rtsp, args=(url, q, raw,))
             p.start()
-            return q.get()
+
+            result = q.get()
+
+            if isinstance(result, Exception):
+                raise result
+
+            return result
 
         if source_type == 'raw-rtsp' and size == 'small':
             self.assert_avail(camera, 'small_rtsp')
