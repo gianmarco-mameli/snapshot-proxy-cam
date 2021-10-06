@@ -1,5 +1,6 @@
 import cv2, os, socketserver, http.server, urllib.parse, requests, logging, time, re, sched, threading
 import numpy as np
+from multiprocessing import Process, Queue
 
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] [thread=%(threadName)s] %(message)s')
 
@@ -60,7 +61,7 @@ MEDIUM_SIZE=(1280, 720) # BETWEEN
 SMALL_SIZE=(768, 432) # W5 CH1
 JPG_COMPRESSION=75 # W5 compression
 
-def capture_rtsp(url, raw = False):
+def capture_rtsp(url, q, raw = False):
     logging.debug('Capturing RTSP')
     capture = cv2.VideoCapture(url)
     released = False
@@ -73,9 +74,9 @@ def capture_rtsp(url, raw = False):
         if not status:
             raise Exception('Empty frame')
         if raw == True:
-            return frame
+            return q.put(frame)
         cap = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
-        return cap
+        return q.put(cap)
     finally:
         if not released:
             capture.release()
@@ -103,7 +104,7 @@ def resize(capture, size, raw = False):
 
     return cv2.imencode('.jpg', cv2.resize(image, size), [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
 
-class Handler(http.server.SimpleHTTPRequestHandler):
+class Handler(http.server.BaseHTTPRequestHandler):
 
     def capture(self, camera, source_type, size, format):
         invalids = []
@@ -170,12 +171,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return ls
 
     def get_image(self, camera, source_type, size):
+        def process_capture_rtsp(url, raw=False):
+            q = Queue()
+            p = Process(target=capture_rtsp, args=(url, q, raw,))
+            p.start()
+            return q.get()
+
         if source_type == 'raw-rtsp' and size == 'small':
             self.assert_avail(camera, 'small_rtsp')
-            return capture_rtsp(camera['small_rtsp'])
+            return process_capture_rtsp(camera['small_rtsp'])
         if source_type == 'raw-rtsp' and size == 'big':
             self.assert_avail(camera, 'big_rtsp')
-            return capture_rtsp(camera['big_rtsp'])
+            return process_capture_rtsp(camera['big_rtsp'])
         if source_type == 'raw-jpg' and size == 'small':
             self.assert_avail(camera, 'small_jpg')
             return capture_jpg(camera['small_jpg'])
@@ -189,7 +196,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     [
                         ['big_jpg',   lambda: capture_jpg(camera['big_jpg'])],
                         ['small_jpg', lambda: resize(capture_jpg(camera['small_jpg']), BIG_SIZE)],
-                        ['big_rtsp',  lambda: capture_rtsp(camera['big_rtsp'])]
+                        ['big_rtsp',  lambda: process_capture_rtsp(camera['big_rtsp'])]
                     ]
                 )
             )
@@ -199,7 +206,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     camera,
                     [
                         ['small_jpg',  lambda: capture_jpg(camera['small_jpg'])],
-                        ['small_rtsp', lambda: capture_rtsp(camera['small_rtsp'])],
+                        ['small_rtsp', lambda: process_capture_rtsp(camera['small_rtsp'])],
                     ]
                 )
             )
@@ -210,7 +217,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     [
                         ['big_jpg',   lambda: resize(capture_jpg(camera['big_jpg']), MEDIUM_SIZE)],
                         ['small_jpg', lambda: resize(capture_jpg(camera['small_jpg']), MEDIUM_SIZE)],
-                        ['big_rtsp',  lambda: resize(capture_rtsp(camera['big_rtsp'], True), MEDIUM_SIZE, True)]
+                        ['big_rtsp',  lambda: resize(process_capture_rtsp(camera['big_rtsp'], True), MEDIUM_SIZE, True)]
                     ]
                 )
             )
