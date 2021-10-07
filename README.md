@@ -8,6 +8,10 @@ See docker-compose.yml
 
 For RTSP proxy, see https://github.com/aler9/rtsp-simple-server
 
+## Others cams
+
+The app now handles only W5, but we can extend to flexible contract or add cameras support. For new cam, please open issue with various urls (rtsp, image ; for each big, small, etc) to design a flexible app and develop it.
+
 ## Routes
 
 `/{camName}/{sourceType}/{size}.{format}`
