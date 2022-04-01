@@ -206,7 +206,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     [
                         ['big_jpg',   lambda: capture_jpg(camera['big_jpg'])],
                         ['small_jpg', lambda: resize(capture_jpg(camera['small_jpg']), BIG_SIZE)],
-                        ['big_rtsp',  lambda: process_capture_rtsp(camera['big_rtsp'])]
+                        ['big_rtsp',  lambda: process_capture_rtsp(camera['big_rtsp'])],
+                        ['small_rtsp',lambda: resize(process_capture_rtsp(camera['small_rtsp'], True), BIG_SIZE, True)]
                     ]
                 )
             )
