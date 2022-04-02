@@ -62,7 +62,7 @@ SMALL_SIZE=(768, 432) # W5 CH1
 JPG_COMPRESSION=75 # W5 compression
 
 def capture_rtsp(url, q, raw = False):
-    logging.debug('Capturing RTSP')
+    logging.debug('Capturing RTSP ' + url)
     capture = None
     released = False
 
@@ -74,7 +74,9 @@ def capture_rtsp(url, q, raw = False):
         capture.release()
         released = True
         if not status:
+            logging.debug('Failed to capture RTSP ' + url)
             raise Exception('Empty frame')
+        logging.debug('Capture success RTSP ' + url)
         if raw == True:
             return q.put(frame)
         cap = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_COMPRESSION])[1]
@@ -86,17 +88,19 @@ def capture_rtsp(url, q, raw = False):
             capture.release()
 
 def capture_jpg(url):
-    logging.debug('Capturing JPG')
+    logging.debug('Capturing JPG ' + url)
     response = requests.get(url, timeout=10)
     response.raise_for_status()
     return response.content
 
 def capture_fallbacks(lambdas):
-    for _lambda in lambdas:
+    for name in lambdas:
+        _lambda = lambdas[name]
         try:
+            logging.debug('Capture STEP ' + name)
             return _lambda()
         except Exception as inst:
-            logging.info('WRN ' + str(inst))
+            logging.info('WRN on STEP ' + str(inst))
 
     raise Exception('No working fallback')
 
@@ -161,10 +165,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return False
 
     def build_capture_fallbacks(self, camera, mapping):
-        ls = []
+        ls = {}
         for item in mapping:
             if self.is_avail(camera, item[0]):
-                ls.append(item[1])
+                ls[item[0]] = item[1]
 
         if len(ls) == 0:
             raise Exception('Nothing is handled on camera %s' % camera['name'])
