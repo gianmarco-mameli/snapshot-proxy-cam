@@ -34,10 +34,10 @@ def load_config():
         if 'enabled_rtsp' in values and values['enabled_rtsp'] in ['0', 'false']:
             enabled_rtsp = False
 
-        SMALL_RTSP='rtsp://' + values['host'] + '/live/ch1'
-        SMALL_JPG='http://' + values['host'] + '/api/v1/snap.cgi?chn=1'
-        BIG_RTSP='rtsp://' + values['host'] + '/live/ch0'
-        BIG_JPG='http://' + values['host'] + '/api/v1/snap.cgi?chn=0'
+        SMALL_RTSP=values['host']
+        SMALL_JPG=values['host']
+        BIG_RTSP=values['host']
+        BIG_JPG=values['host']
 
         if 'rtsp_token' in values != None:
             SMALL_RTSP += '?token=' + values['rtsp_token']
@@ -280,7 +280,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 #     pass
 
 # httpd = ThreadingHTTPServer(('', 8080), Handler)
-port = int(os.environ.get('PORT', 80))
+port = int(os.environ.get('PORT', 8555))
 httpd = socketserver.ThreadingTCPServer(('', port), Handler)
 try:
    logging.info('Listening')

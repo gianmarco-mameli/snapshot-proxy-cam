@@ -4,9 +4,9 @@ FROM debian:bullseye-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3-opencv python3-pip \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -s /usr/bin/python3 /usr/bin/python \
-    && ln -s /usr/bin/pip3 /usr/bin/pip
+    && rm -rf /var/lib/apt/lists/*
+    # && ln -s /usr/bin/python3 /usr/bin/python \
+    # && ln -s /usr/bin/pip3 /usr/bin/pip
 
 # CMD ["python3"]
 
