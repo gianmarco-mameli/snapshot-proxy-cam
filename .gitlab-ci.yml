@@ -1,0 +1,65 @@
+variables:
+  IMAGE_NAME: "snapshotproxycam"
+  VERSION: "1.0"
+
+  REGISTRY_IMAGE: "$PRIVATE_REGISTRY/$IMAGE_NAME"
+  DOCKER_VERSION: "20.10.21"
+  DIND_VERSION: $DOCKER_VERSION'-dind'
+  BUILDX_VERSION: "0.10"
+  BUILDX_IMAGE: "$CI_REGISTRY/docker_images/buildx:$BUILDX_VERSION"
+  BUILDER_IMAGE: "${IMAGE_NAME}-builder-$CI_CONCURRENT_ID"
+
+stages:
+  - linting
+  - build
+  - publish
+
+# before_script:
+#   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+image: $BUILDX_IMAGE
+
+buildkit_toml:
+  stage: .pre
+  script:
+    - envsubst < buildkitd.toml.tmpl > buildkitd.toml
+  artifacts:
+    paths:
+      - buildkitd.toml
+
+hadolint:
+  stage: linting
+  image: registry.gitlab.com/pipeline-components/hadolint:latest
+  script:
+    - hadolint Dockerfile
+  allow_failure: true
+  rules:
+    - changes:
+        - Dockerfile
+
+build_image:
+  stage: build
+  script:
+    - docker buildx create --use --name ${BUILDER_IMAGE} --config=buildkitd.toml
+    - docker buildx bake --load --file package_bake.hcl --progress plain
+  rules:
+    - changes:
+        - Dockerfile
+        - .gitlab-ci.yml
+        - package_bake.hcl
+  after_script:
+    - docker buildx stop ${BUILDER_IMAGE}
+    - docker buildx rm ${BUILDER_IMAGE}
+
+publish_image:
+  stage: publish
+  script:
+    - docker push ${REGISTRY_IMAGE}:${VERSION}-armv7
+    - docker push ${REGISTRY_IMAGE}:${VERSION}-arm64
+    - docker manifest create ${REGISTRY_IMAGE}:${VERSION} --amend ${REGISTRY_IMAGE}:${VERSION}-armv7 --amend ${REGISTRY_IMAGE}:${VERSION}-arm64
+    - docker manifest push $REGISTRY_IMAGE:$VERSION
+  rules:
+    - changes:
+        - Dockerfile
+        - .gitlab-ci.yml
+        - package_bake.hcl

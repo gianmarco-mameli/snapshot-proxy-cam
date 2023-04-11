@@ -1,8 +1,7 @@
 # Difficulty to install both ARM & x64, I make a custom install
 
-FROM debian:buster-slim
-RUN \
-    apt-get update \
+FROM debian:bullseye-slim
+RUN apt-get update \
     && apt-get install -y --no-install-recommends python3-opencv python3-pip \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && rm -rf /var/lib/apt/lists/* \
@@ -15,11 +14,11 @@ RUN pip install requests
 
 WORKDIR /app
 
-ADD main.py .
+COPY main.py .
 
 USER nobody
 
-CMD python -u ./main.py
+CMD ["python", "-u", "./main.py"]
 
 # FROM python:slim
 
