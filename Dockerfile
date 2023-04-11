@@ -18,7 +18,7 @@ COPY main.py .
 
 USER nobody
 
-CMD ["python", "-u", "./main.py"]
+CMD ["python3", "-u", "./main.py"]
 
 # FROM python:slim
 
