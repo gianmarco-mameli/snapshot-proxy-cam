@@ -1,33 +1,38 @@
 variables:
-  IMAGE_NAME: "snapshotproxycam"
-  VERSION: "1.0"
+  IMAGE_NAME: snapshotproxycam
+  VERSION: 2.0
 
-  REGISTRY_IMAGE: "$PRIVATE_REGISTRY/$IMAGE_NAME"
-  DOCKER_VERSION: "20.10.21"
-  DIND_VERSION: $DOCKER_VERSION'-dind'
-  BUILDX_VERSION: "0.10"
-  BUILDX_IMAGE: "$CI_REGISTRY/docker_images/buildx:$BUILDX_VERSION"
+  REGISTRY_IMAGE: $PRIVATE_REGISTRY/$IMAGE_NAME
+  DIND_VERSION: $DOCKER_VERSION-dind
   BUILDER_IMAGE: "${IMAGE_NAME}-builder-$CI_CONCURRENT_ID"
+
+image: docker:$DOCKER_VERSION
 
 stages:
   - linting
   - build
-  - publish
 
-# before_script:
-#   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+before_script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  - docker run --privileged --rm tonistiigi/binfmt --install all
+  - docker buildx create --use --bootstrap --name ${BUILDER_IMAGE} --config=buildkitd.toml
 
-image: $BUILDX_IMAGE
+after_script:
+  - docker buildx stop ${BUILDER_IMAGE}
+  - docker buildx rm ${BUILDER_IMAGE}
 
 buildkit_toml:
   stage: .pre
+  image: alpine
+  before_script: []
   script:
+    - apk add envsubst
     - envsubst < buildkitd.toml.tmpl > buildkitd.toml
   artifacts:
     paths:
       - buildkitd.toml
 
-hadolint:
+.hadolint:
   stage: linting
   image: registry.gitlab.com/pipeline-components/hadolint:latest
   script:
@@ -35,31 +40,16 @@ hadolint:
   allow_failure: true
   rules:
     - changes:
-        - Dockerfile
+      - Dockerfile*
 
-build_image:
+build_publish:
   stage: build
   script:
-    - docker buildx create --use --name ${BUILDER_IMAGE} --config=buildkitd.toml
-    - docker buildx bake --load --file package_bake.hcl --progress plain
+    - >
+      export VERSION=$(sed -rn 's/^\s*\"node-red\": \"([0-9]+\.[0-9]+\.[0-9]+)\"\s*,/\1/p' package.json)
+    - echo $VERSION
+    - docker buildx bake --push --file package_bake.hcl --progress plain
   rules:
     - changes:
         - Dockerfile
-        - .gitlab-ci.yml
-        - package_bake.hcl
-  after_script:
-    - docker buildx stop ${BUILDER_IMAGE}
-    - docker buildx rm ${BUILDER_IMAGE}
-
-publish_image:
-  stage: publish
-  script:
-    - docker push ${REGISTRY_IMAGE}:${VERSION}-armv7
-    - docker push ${REGISTRY_IMAGE}:${VERSION}-arm64
-    - docker manifest create ${REGISTRY_IMAGE}:${VERSION} --amend ${REGISTRY_IMAGE}:${VERSION}-armv7 --amend ${REGISTRY_IMAGE}:${VERSION}-arm64
-    - docker manifest push $REGISTRY_IMAGE:$VERSION
-  rules:
-    - changes:
-        - Dockerfile
-        - .gitlab-ci.yml
         - package_bake.hcl
