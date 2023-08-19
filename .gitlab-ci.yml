@@ -45,9 +45,6 @@ buildkit_toml:
 build_publish:
   stage: build
   script:
-    - >
-      export VERSION=$(sed -rn 's/^\s*\"node-red\": \"([0-9]+\.[0-9]+\.[0-9]+)\"\s*,/\1/p' package.json)
-    - echo $VERSION
     - docker buildx bake --push --file package_bake.hcl --progress plain
   rules:
     - changes:
