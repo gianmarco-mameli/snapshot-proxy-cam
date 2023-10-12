@@ -1,9 +1,7 @@
 variables:
   IMAGE_NAME: snapshotproxycam
-  VERSION: "2.0"
-
-  REGISTRY_IMAGE: $PRIVATE_REGISTRY/$IMAGE_NAME
-  DIND_VERSION: $DOCKER_VERSION-dind
+  VERSION: "3.0"
+  REGISTRY_IMAGE: $HARBOR_HOST/$HARBOR_PROJECT/$IMAGE_NAME
   BUILDER_IMAGE: "${IMAGE_NAME}-builder-$CI_CONCURRENT_ID"
 
 image: docker:$DOCKER_VERSION
@@ -13,7 +11,8 @@ stages:
   - build
 
 before_script:
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  - docker login -u $HARBOR_USERNAME -p $HARBOR_PASSWORD $HARBOR_HOST
+  # - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - docker buildx create --use --bootstrap --name ${BUILDER_IMAGE} --config=buildkitd.toml
 
@@ -25,6 +24,7 @@ buildkit_toml:
   stage: .pre
   image: alpine
   before_script: []
+  after_script: []
   script:
     - apk add envsubst
     - envsubst < buildkitd.toml.tmpl > buildkitd.toml
