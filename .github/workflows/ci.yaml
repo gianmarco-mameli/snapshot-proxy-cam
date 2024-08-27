@@ -3,10 +3,18 @@ name: ci
 on:
   push:
 
+env:
+  VERSION: 4.0
+
 jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
+      - name: Hadolint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -18,3 +26,12 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags:
+            - ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ env.VERSION}}
+            - ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
