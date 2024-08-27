@@ -32,6 +32,5 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
           push: true
-          tags:
-            - ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ env.VERSION}}
-            - ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ env.VERSION}},
+                ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
