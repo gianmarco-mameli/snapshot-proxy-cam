@@ -1,3 +1,5 @@
+Originally a fork but unfortunately the original repo is not available anymore
+
 # snapshot-proxy-cam
 
 Proxy Cam for (currently) shitty W5 (need fallbacked because doesnt support officialy snapshot endpoint and so don't want to fix repetitive E500)
